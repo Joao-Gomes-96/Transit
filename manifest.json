@@ -1,9 +1,9 @@
 {
   "short_name": "CommuteTrack",
   "name": "CommuteTrack Multi-Modal Optimizer",
-  "icons": [
+ "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3066/3066258.png",
+      "src": "https://img.icons8.com/fluency/512/train.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
