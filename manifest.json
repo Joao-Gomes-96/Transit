@@ -3,7 +3,7 @@
   "name": "CommuteTrack Multi-Modal Optimizer",
   "icons": [
     {
-      "src": "https://img.icons8.com/fluency/512/train.png",
+      "src": "./my-logo.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"

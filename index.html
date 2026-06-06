@@ -6,8 +6,8 @@
     <title>Transit</title>
     
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007AFF'><path d='M12 2c-4.42 0-8 3.58-8 8v7c0 1.66 1.34 3 3 3l-1 1v1h12v-1l-1-1c1.66 0 3-1.34 3-3v-7c0-4.42-3.58-8-8-8zm4 14H8v-3h8v3zm0-4H8V7h8v5z'/></svg>">
-    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/512/train.png">
+    <link rel="icon" type="image/png" href="./my-logo.png">
+    <link rel="apple-touch-icon" href="./my-logo.png">
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -92,7 +92,7 @@
         </div>
 
         <section id="tab-log" class="tab-content block space-y-4">
-            <div class="bg-white dark:bg-iosCardDark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-none">
+            <div class="bg-white dark:bg-iosCardDark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-none overflow-hidden">
                 <h2 class="text-xs font-semibold uppercase tracking-wider text-iosGray mb-3">Date</h2>
                 <input id="log-date" type="date" class="block w-full box-border max-w-full px-4 py-3 bg-iosBgLight dark:bg-black rounded-xl text-sm outline-none border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-iosBlue">
             </div>
@@ -212,6 +212,16 @@
             </div>
 
             <div class="bg-white dark:bg-iosCardDark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-none">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-iosGray mb-3">14-Day Trend</h2>
+                <div id="trend-chart-container"></div>
+                <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-dirHomeWork inline-block"></span><span class="text-[10px] text-iosGray font-medium">Home→Work</span></div>
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-dirWorkHome inline-block"></span><span class="text-[10px] text-iosGray font-medium">Work→Home</span></div>
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span><span class="text-[10px] text-iosGray font-medium">Delay</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-iosCardDark rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-none">
                 <h2 class="text-xs font-bold uppercase tracking-wider text-iosGray mb-1.5">Data Insurance</h2>
                 <p class="text-[11px] text-iosGray leading-normal mb-3">Download a backup file of your routes and log metrics, or copy them onto another framework.</p>
                 
@@ -227,6 +237,8 @@
             </div>
         </section>
     </main>
+
+    <div id="toast" class="fixed top-20 left-1/2 z-[100] px-5 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-black text-sm font-semibold rounded-full shadow-xl pointer-events-none" style="opacity:0;transform:translateX(-50%);transition:opacity 0.3s ease;"></div>
 
     <nav class="fixed bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-iosCardDark/90 backdrop-blur-lg pb-safe-bottom z-50">
         <div class="max-w-md mx-auto flex justify-around items-center h-16">
@@ -254,7 +266,8 @@
         let currentDirection = 'home_work';
         let currentBuilderSegments = [];
         let selectedRouteId = null;
-        let editingRouteId = null; 
+        let editingRouteId = null;
+        let editingLogId = null;
         let activeDelayTags = []; 
 
         const modeColors = {
@@ -265,6 +278,51 @@
             'Walking': 'bg-stone-100 text-stone-800 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700',
             'Drive': 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900'
         };
+
+        function formatDuration(mins) {
+            if (mins < 60) return `${mins}m`;
+            const h = Math.floor(mins / 60), m = mins % 60;
+            return m === 0 ? `${h}h` : `${h}h ${m}m`;
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            if (!t) return;
+            t.textContent = msg;
+            t.style.opacity = '1';
+            clearTimeout(t._tid);
+            t._tid = setTimeout(() => { t.style.opacity = '0'; }, 2200);
+        }
+
+        function startEditLog(id) {
+            editingLogId = id;
+            renderHistory();
+            setTimeout(() => {
+                const card = document.querySelector('#history-container .border-iosBlue');
+                if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
+        }
+
+        function saveLogEdit(id) {
+            const log = logs.find(l => String(l.id) === String(id));
+            if (!log) return;
+            const hours = parseInt(document.getElementById('edit-log-hours').value) || 0;
+            const mins  = parseInt(document.getElementById('edit-log-minutes').value) || 0;
+            const dur   = (hours * 60) + mins;
+            const date  = document.getElementById('edit-log-date').value;
+            if (dur <= 0 || !date) return;
+            log.duration = dur;
+            log.date = date;
+            localStorage.setItem('commute_logs', JSON.stringify(logs));
+            editingLogId = null;
+            renderHistory();
+            if (currentTab === 'stats') renderStats();
+        }
+
+        function cancelLogEdit() {
+            editingLogId = null;
+            renderHistory();
+        }
 
         let routes = JSON.parse(localStorage.getItem('commute_routes')) || [
             {
@@ -524,7 +582,44 @@
                 const routeName = parentRoute ? parentRoute.name : 'Deleted Route';
                 const directionText = parentRoute ? (parentRoute.direction === 'home_work' ? 'Home ➔ Work' : 'Work ➔ Home') : 'N/A';
                 const displayDate = log.date || (log.timestamp ? new Date(log.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
-                
+
+                if (String(log.id) === String(editingLogId)) {
+                    const eH = Math.floor(log.duration / 60), eM = log.duration % 60;
+                    let hoursOpts = '', minsOpts = '';
+                    for (let h = 0; h <= 5; h++) hoursOpts += `<option value="${h}" ${h === eH ? 'selected' : ''}>${h} h</option>`;
+                    for (let m = 0; m < 60; m++) minsOpts += `<option value="${m}" ${m === eM ? 'selected' : ''}>${m < 10 ? '0'+m : m} m</option>`;
+                    return `
+                        <div class="p-3 bg-iosBgLight dark:bg-black rounded-xl border-2 border-iosBlue shadow-sm">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-xs font-bold truncate">${routeName}</h4>
+                                <span class="text-[10px] text-iosGray font-mono">${directionText}</span>
+                            </div>
+                            <div class="space-y-2.5">
+                                <div>
+                                    <span class="text-[10px] text-iosGray font-bold uppercase tracking-wide block mb-1">Date</span>
+                                    <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <input type="date" id="edit-log-date" value="${displayDate}" class="block w-full box-border px-3 py-2 bg-white dark:bg-iosCardDark text-sm outline-none focus:ring-2 focus:ring-iosBlue">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <span class="text-[10px] text-iosGray font-bold uppercase tracking-wide block mb-1">Hours</span>
+                                        <select id="edit-log-hours" class="wheel-picker w-full text-center font-bold py-2 bg-white dark:bg-iosCardDark rounded-xl border border-gray-200 dark:border-gray-700 outline-none text-sm focus:ring-2 focus:ring-iosBlue">${hoursOpts}</select>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-iosGray font-bold uppercase tracking-wide block mb-1">Minutes</span>
+                                        <select id="edit-log-minutes" class="wheel-picker w-full text-center font-bold py-2 bg-white dark:bg-iosCardDark rounded-xl border border-gray-200 dark:border-gray-700 outline-none text-sm focus:ring-2 focus:ring-iosBlue">${minsOpts}</select>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 pt-1">
+                                    <button onclick="saveLogEdit('${log.id}')" class="bg-iosBlue text-white font-bold py-2.5 rounded-xl text-xs">Save Changes</button>
+                                    <button onclick="cancelLogEdit()" class="bg-gray-200 dark:bg-gray-700 text-black dark:text-white font-bold py-2.5 rounded-xl text-xs">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 let tagsMarkup = '';
                 if (log.tags && log.tags.length > 0) {
                     tagsMarkup = `
@@ -533,7 +628,7 @@
                         </div>
                     `;
                 }
-                
+
                 return `
                     <div class="p-3 bg-iosBgLight dark:bg-black rounded-xl flex items-center justify-between shadow-sm">
                         <div class="max-w-[65%]">
@@ -542,36 +637,13 @@
                             ${tagsMarkup}
                         </div>
                         <div class="flex items-center space-x-1.5">
-                            <span class="text-xs font-bold px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border dark:border-none">${log.duration}m</span>
-                            <button onclick="editLogEntry('${log.id}')" class="p-1.5 text-iosBlue font-bold text-xs bg-white dark:bg-gray-800 rounded-md shadow-sm hover:opacity-70">Edit</button>
-                            <button onclick="deleteLogEntry('${log.id}')" class="p-1.5 text-rose-500 font-bold text-xs bg-white dark:bg-gray-800 rounded-md shadow-sm hover:opacity-70">X</button>
+                            <span class="text-xs font-bold px-2 py-1 rounded-lg bg-white dark:bg-gray-800 border dark:border-none">${formatDuration(log.duration)}</span>
+                            <button onclick="startEditLog('${log.id}')" class="p-1.5 text-iosBlue font-bold text-xs bg-white dark:bg-gray-800 rounded-md shadow-sm hover:opacity-70">Edit</button>
+                            <button onclick="deleteLogEntry('${log.id}')" class="p-1.5 text-rose-500 font-bold text-xs bg-white dark:bg-gray-800 rounded-md shadow-sm hover:opacity-70">✕</button>
                         </div>
                     </div>
                 `;
             }).join('');
-        }
-
-        function editLogEntry(id) {
-            const targetLog = logs.find(l => String(l.id) === String(id));
-            if (!targetLog) return;
-
-            const newDurationStr = prompt("Update the duration for this trip (in minutes):", targetLog.duration);
-            if (newDurationStr === null) return; 
-            const parsedDuration = parseInt(newDurationStr);
-            
-            const currentDisplayDate = targetLog.date || (targetLog.timestamp ? new Date(targetLog.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
-            const newDateStr = prompt("Update the date for this trip (YYYY-MM-DD):", currentDisplayDate);
-            if (newDateStr === null) return;
-
-            if (!isNaN(parsedDuration) && parsedDuration > 0 && newDateStr.trim() !== "") {
-                targetLog.duration = parsedDuration;
-                targetLog.date = newDateStr.trim();
-                localStorage.setItem('commute_logs', JSON.stringify(logs));
-                renderHistory();
-                if(currentTab === 'stats') renderStats();
-            } else {
-                alert("Invalid input. Please check your numbers and date format.");
-            }
         }
 
         function deleteLogEntry(id) {
@@ -651,6 +723,7 @@
 
             injectLeaderboardMarkup('stats-leaderboard-home', leaderboardHome);
             injectLeaderboardMarkup('stats-leaderboard-work', leaderboardWork);
+            renderTrendChart();
         }
 
         function executeLog() {
@@ -687,7 +760,7 @@
             document.getElementById('picker-hours').value = "0";
             document.getElementById('picker-minutes').value = "0";
             clearDelayChips();
-            
+            showToast('Trip saved ✓');
             switchTab('history');
         }
 
@@ -853,6 +926,7 @@
                 html.classList.add('dark');
                 localStorage.setItem('theme', 'dark');
             }
+            if (currentTab === 'stats') renderTrendChart();
         }
 
         function buildTimePickers() {
@@ -870,6 +944,59 @@
                 minsOptions += `<option value="${m}">${m < 10 ? '0' + m : m} m</option>`;
             }
             minsSelect.innerHTML = minsOptions;
+        }
+
+        function renderTrendChart() {
+            const el = document.getElementById('trend-chart-container');
+            if (!el) return;
+            const dark = document.documentElement.classList.contains('dark');
+            const today = new Date();
+            const days = [];
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                days.push(d.toISOString().split('T')[0]);
+            }
+            const dayData = days.map(date => {
+                const dl = logs.filter(l => l.date === date);
+                const hwL = dl.filter(l => { const r = routes.find(x => String(x.id) === String(l.routeId)); return r && r.direction === 'home_work'; });
+                const whL = dl.filter(l => { const r = routes.find(x => String(x.id) === String(l.routeId)); return r && r.direction === 'work_home'; });
+                const hwA = hwL.length ? Math.round(hwL.reduce((s, l) => s + l.duration, 0) / hwL.length) : null;
+                const whA = whL.length ? Math.round(whL.reduce((s, l) => s + l.duration, 0) / whL.length) : null;
+                return { date, hwA, whA, hasDelay: dl.some(l => l.tags && l.tags.length > 0) };
+            });
+            if (!dayData.some(d => d.hwA !== null || d.whA !== null)) {
+                el.innerHTML = '<p class="text-[11px] text-iosGray italic text-center py-6">Log some trips to see your trend chart.</p>';
+                return;
+            }
+            const W = 320, H = 160, pL = 28, pR = 8, pT = 12, pB = 28;
+            const cW = W - pL - pR, cH = H - pT - pB;
+            const allV = dayData.flatMap(d => [d.hwA, d.whA]).filter(v => v !== null);
+            const yMax = Math.ceil(Math.max(...allV, 20) / 15) * 15 + 15;
+            const yC = v => pT + cH - (v / yMax) * cH;
+            const gc = dark ? '#3f3f46' : '#e5e7eb';
+            const lc = dark ? '#71717a' : '#9ca3af';
+            const step = yMax <= 60 ? 15 : yMax <= 120 ? 30 : 60;
+            const slotW = cW / 14, bW = slotW * 0.28, gap = slotW * 0.05;
+            let grid = '', bars = '', lbls = '';
+            for (let v = 0; v <= yMax; v += step) {
+                grid += `<line x1="${pL}" y1="${yC(v).toFixed(1)}" x2="${W - pR}" y2="${yC(v).toFixed(1)}" stroke="${gc}" stroke-width="0.5"/>`;
+                grid += `<text x="${pL - 3}" y="${(yC(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="7" fill="${lc}">${v}</text>`;
+            }
+            dayData.forEach((day, i) => {
+                const cx = pL + i * slotW + slotW / 2;
+                if (day.hwA !== null) { const bH = (day.hwA / yMax) * cH; bars += `<rect x="${(cx - bW - gap / 2).toFixed(1)}" y="${yC(day.hwA).toFixed(1)}" width="${bW.toFixed(1)}" height="${bH.toFixed(1)}" rx="2" fill="#4F46E5" opacity="0.85"/>`; }
+                if (day.whA !== null) { const bH = (day.whA / yMax) * cH; bars += `<rect x="${(cx + gap / 2).toFixed(1)}" y="${yC(day.whA).toFixed(1)}" width="${bW.toFixed(1)}" height="${bH.toFixed(1)}" rx="2" fill="#0D9488" opacity="0.85"/>`; }
+                if (day.hasDelay && (day.hwA !== null || day.whA !== null)) {
+                    const tV = Math.max(day.hwA !== null ? day.hwA : 0, day.whA !== null ? day.whA : 0);
+                    bars += `<circle cx="${cx.toFixed(1)}" cy="${(yC(tV) - 5).toFixed(1)}" r="2.5" fill="#F59E0B"/>`;
+                }
+                if (i === 0 || i === 6 || i === 13) {
+                    const dt = new Date(day.date + 'T12:00:00');
+                    lbls += `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="7" fill="${lc}">${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</text>`;
+                }
+            });
+            el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;">${grid}${bars}${lbls}</svg>`;
         }
 
         // Service Worker setup mapped correctly for PWA integration
