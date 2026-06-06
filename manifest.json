@@ -1,0 +1,22 @@
+{
+  "short_name": "Transit",
+  "name": "Transit",
+  "icons": [
+    {
+      "src": "./apple-touch-icon-v2.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "./my-logo-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#1C1C1E",
+  "theme_color": "#007AFF",
+  "display": "standalone",
+  "orientation": "portrait"
+}
